@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Placard de Snooker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: mesa de snooker — placard de dois jogadores no topo (pano verde), estado da frame, rack de bolas e ações em baixo. Visual único (pano escuro) por opção. */
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  --felt:#0e4a33; --felt-deep:#0a3626; --rail:#3b2214; --chalk:#eef3ee; --chalk-dim:#a9c2b4;
+  --brass:#d9b560; --line:rgba(238,243,238,.14); --panel:rgba(0,0,0,.22);
+  --warn:#f0a63a; --crit:#ff6b5e; --ok:#7fd8a1;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--rail);color:var(--chalk);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:860px;margin:0 auto;padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+.table{background:radial-gradient(120% 90% at 50% 0%,var(--felt) 0%,var(--felt-deep) 100%);border-radius:14px;padding:16px;box-shadow:inset 0 0 0 6px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:700;font-size:1.6rem;letter-spacing:.06em;text-transform:uppercase;margin:0;text-wrap:balance}
+.meta{font-family:var(--display);font-size:1.05rem;letter-spacing:.08em;text-transform:uppercase;color:var(--brass)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 14px;font-weight:600;font-size:.9rem}
+.btn:hover:not(:disabled){border-color:var(--brass)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--brass);color:#2a1a0c;border-color:var(--brass)}
+.btn.danger{border-color:rgba(255,107,94,.55);color:#ffd2cc}
+.tools{display:flex;gap:8px;flex-wrap:wrap}
+
+/* Placard */
+.board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.player{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0;transition:border-color .2s,box-shadow .2s}
+.player.active{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass),0 0 24px rgba(217,181,96,.18)}
+.player .name{background:transparent;border:0;border-bottom:1px dashed transparent;color:var(--chalk);font-family:var(--display);font-weight:600;font-size:1.25rem;letter-spacing:.04em;text-transform:uppercase;width:100%;padding:0;min-width:0}
+.player .name:hover,.player .name:focus{border-bottom-color:var(--chalk-dim);outline:none}
+.score{font-family:var(--display);font-weight:700;font-size:clamp(3.4rem,13vw,5.4rem);line-height:.95;font-variant-numeric:tabular-nums}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.8rem;color:var(--chalk-dim)}
+.stats b{color:var(--chalk);font-variant-numeric:tabular-nums;font-weight:600}
+.frames{position:absolute;top:10px;right:12px;font-family:var(--display);font-size:1.6rem;font-weight:700;color:var(--brass);font-variant-numeric:tabular-nums}
+.turn{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--brass);min-height:1.1em}
+.brk{font-family:var(--display);font-size:1.1rem;letter-spacing:.04em}
+.brk span{font-variant-numeric:tabular-nums}
+
+/* Estado */
+.status{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--panel);border-radius:10px;padding:8px 10px;min-width:0}
+.stat .k{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--chalk-dim)}
+.stat .v{font-family:var(--display);font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+.alert{border-radius:10px;padding:10px 12px;font-weight:600;display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);background:var(--panel)}
+.alert .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;background:var(--ok)}
+.alert.warn{border-color:rgba(240,166,58,.6)} .alert.warn .dot{background:var(--warn)}
+.alert.crit{border-color:rgba(255,107,94,.7)} .alert.crit .dot{background:var(--crit)}
+.alert small{display:block;font-weight:400;color:var(--chalk-dim)}
+
+/* Bolas */
+.on{font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--chalk-dim)}
+.on b{color:var(--chalk)}
+.rack{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;padding:6px 0}
+.ball{--c:#c00;width:62px;height:62px;border-radius:50%;border:0;position:relative;
+  background:radial-gradient(circle at 32% 28%,rgba(255,255,255,.75) 0 7%,transparent 18%),radial-gradient(circle at 50% 55%,var(--c) 0 60%,color-mix(in srgb,var(--c) 55%,#000) 100%);
+  box-shadow:0 6px 10px rgba(0,0,0,.45);transition:transform .12s,opacity .2s,filter .2s;display:grid;place-items:center}
+.ball span{font-family:var(--display);font-weight:700;font-size:1.25rem;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6);background:rgba(0,0,0,.18);width:28px;height:28px;border-radius:50%;display:grid;place-items:center}
+.ball:hover:not(:disabled){transform:translateY(-3px)}
+.ball:active:not(:disabled){transform:scale(.94)}
+.ball:disabled{opacity:.22;filter:grayscale(.7);cursor:not-allowed;box-shadow:none}
+.ball.expected{outline:2px solid var(--brass);outline-offset:4px}
+.ball.free{--c:#6b7f75;background:repeating-linear-gradient(45deg,#cfd9d3 0 6px,#8fa398 6px 12px);border:2px dashed var(--brass)}
+.ball.free span{background:rgba(0,0,0,.45);width:auto;padding:0 6px;border-radius:12px;font-size:.95rem}
+.red{--c:#c4161c}.yellow{--c:#f2c230}.green{--c:#1d8a4b}.brown{--c:#7b4824}.blue{--c:#1f5fc4}.pink{--c:#ea86b3}.black{--c:#1a1a1a}
+.ball-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.72rem;color:var(--chalk-dim)}
+.reds-left{font-variant-numeric:tabular-nums}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.actions .btn{padding:12px 8px}
+
+/* Painéis */
+.sheet{background:#1d130b;border:1px solid var(--brass);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.sheet h2{margin:0;font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:1.25rem}
+.sheet .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sheet label{font-size:.85rem;color:var(--chalk-dim)}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-weight:600;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--brass);color:#2a1a0c;border-color:var(--brass)}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper output{font-family:var(--display);font-size:1.4rem;min-width:2ch;text-align:center;font-variant-numeric:tabular-nums}
+.hint{font-size:.8rem;color:var(--chalk-dim);margin:0}
+select{background:var(--panel);color:var(--chalk);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font:inherit}
+
+/* Log e regras */
+.lower{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.card{background:rgba(0,0,0,.25);border-radius:12px;padding:14px;min-width:0}
+.card h3{margin:0 0 8px;font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:1.05rem;color:var(--brass)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;font-size:.85rem}
+.log li{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.log li span:last-child{color:var(--chalk-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rules{font-size:.85rem;color:var(--chalk-dim)}
+.rules details{border-bottom:1px solid var(--line);padding:6px 0}
+.rules summary{cursor:pointer;color:var(--chalk);font-weight:600}
+.rules ul{margin:6px 0;padding-left:18px}
+.rules table{border-collapse:collapse;width:100%;margin-top:6px}
+.rules td{padding:3px 4px;border-bottom:1px solid var(--line)}
+.rules td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--chalk)}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:max(16px,env(safe-area-inset-left,0px));z-index:20}
+.overlay .sheet{max-width:420px;width:100%;text-align:center;align-items:center}
+.big{font-family:var(--display);font-size:2.4rem;font-weight:700;line-height:1}
+
+@media (max-width:620px){
+  .status{grid-template-columns:repeat(2,1fr)}
+  .lower{grid-template-columns:1fr}
+  .ball{width:52px;height:52px}
+  .rack{gap:8px}
+  .player{padding:10px}
+  .frames{font-size:1.3rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="table">
+    <header>
+      <div>
+        <h1>Placard de Snooker</h1>
+        <div class="meta" id="meta"></div>
+      </div>
+      <div class="tools">
+        <button class="btn" id="undo" type="button">↶ Desfazer</button>
+        <button class="btn" id="settingsBtn" type="button">Jogo</button>
+      </div>
+    </header>
+
+    <section class="board" id="board" aria-label="Pontuação"></section>
+
+    <section class="status" id="status"></section>
+    <div class="alert" id="alert" role="status" aria-live="polite"></div>
+
+    <section aria-label="Bolas">
+      <div class="on" id="ballOn"></div>
+      <div class="rack" id="rack"></div>
+    </section>
+
+    <section class="actions">
+      <button class="btn" id="endVisit" type="button">Fim de vez</button>
+      <button class="btn danger" id="foulBtn" type="button">Falta</button>
+      <button class="btn" id="endFrameBtn" type="button">Terminar frame</button>
+    </section>
+
+    <section class="sheet" id="foulSheet" hidden>
+      <h2>Falta de <span id="foulWho"></span></h2>
+      <div>
+        <label>Pontos para o adversário (mínimo 4, ou o valor da bola envolvida até 7)</label>
+        <div class="row" id="foulValues"></div>
+      </div>
+      <div>
+        <label>Vermelhas embolsadas na falta (saem da mesa)</label>
+        <div class="stepper">
+          <button class="chip" type="button" id="redMinus">−</button>
+          <output id="redsLost">0</output>
+          <button class="chip" type="button" id="redPlus">+</button>
+        </div>
+      </div>
+      <div>
+        <label>Quem joga a seguir</label>
+        <div class="row" id="nextChoice"></div>
+      </div>
+      <div class="row" id="freeBallRow">
+        <button class="chip" type="button" id="freeBallToggle" aria-pressed="false">Bola livre</button>
+        <p class="hint">Se o adversário ficou em snooker após a falta.</p>
+      </div>
+      <div class="row">
+        <button class="btn primary" type="button" id="foulOk">Registar falta</button>
+        <button class="btn" type="button" id="foulCancel">Cancelar</button>
+      </div>
+    </section>
+
+    <section class="sheet" id="endSheet" hidden>
+      <h2>Terminar frame</h2>
+      <p class="hint">Quem ganha? Use quando um jogador desiste ou a frame fica decidida.</p>
+      <div class="row" id="endChoice"></div>
+      <button class="btn" type="button" id="endCancel">Cancelar</button>
+    </section>
+
+    <section class="sheet" id="settingsSheet" hidden>
+      <h2>Configurar jogo</h2>
+      <div class="row">
+        <label for="bestOf">Encontro à melhor de</label>
+        <select id="bestOf">
+          <option value="1">1 frame</option><option value="3">3 frames</option><option value="5">5 frames</option>
+          <option value="7">7 frames</option><option value="9">9 frames</option><option value="11">11 frames</option>
+          <option value="17">17 frames</option><option value="19">19 frames</option><option value="35">35 frames</option>
+        </select>
+      </div>
+      <div class="row">
+        <button class="btn" type="button" id="swapBreak">Trocar quem abre</button>
+        <button class="btn danger" type="button" id="resetBtn">Novo encontro</button>
+        <button class="btn" type="button" id="settingsClose">Fechar</button>
+      </div>
+      <p class="hint" id="resetHint" hidden>Toque outra vez em “Novo encontro” para apagar tudo.</p>
+    </section>
+  </div>
+
+  <div class="lower">
+    <section class="card">
+      <h3>Registo da frame</h3>
+      <ul class="log" id="log"></ul>
+    </section>
+    <section class="card rules">
+      <h3>Regras resumidas</h3>
+      <details open>
+        <summary>Bolas e valores</summary>
+        <table>
+          <tr><td>15 vermelhas</td><td>1 cada</td></tr>
+          <tr><td>Amarela</td><td>2</td></tr><tr><td>Verde</td><td>3</td></tr>
+          <tr><td>Castanha</td><td>4</td></tr><tr><td>Azul</td><td>5</td></tr>
+          <tr><td>Rosa</td><td>6</td></tr><tr><td>Preta</td><td>7</td></tr>
+          <tr><td>Máximo numa tacada (15×(1+7) + 27)</td><td>147</td></tr>
+        </table>
+      </details>
+      <details>
+        <summary>Ordem de jogo</summary>
+        <ul>
+          <li>Enquanto houver vermelhas: vermelha, depois uma cor à escolha. A cor volta ao seu ponto.</li>
+          <li>Várias vermelhas na mesma tacada contam 1 cada.</li>
+          <li>Após a última vermelha e a sua cor, as cores entram por ordem: amarela → verde → castanha → azul → rosa → preta, e não voltam à mesa.</li>
+          <li>Se a frame acabar empatada, a preta é recolocada e quem a meter primeiro (ou o adversário de quem cometer falta) ganha.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Faltas</summary>
+        <ul>
+          <li>Valor: mínimo 4 pontos, ou o valor da bola em jogo, da primeira bola tocada ou de bola embolsada indevidamente, o que for maior (máx. 7). Os pontos vão para o adversário.</li>
+          <li>Exemplos: não tocar a bola em jogo, tocar primeiro outra bola, embolsar a branca, bola fora da mesa, tocar bolas com o corpo/roupa, não ter um pé no chão, “push shot”, jump shot.</li>
+          <li>Vermelhas embolsadas numa falta não voltam à mesa. Cores embolsadas em falta são recolocadas.</li>
+          <li>Após falta, o adversário escolhe jogar ou mandar o infrator repetir.</li>
+          <li><b>Bola livre</b>: se, após a falta, o adversário ficar em snooker, pode nomear outra bola como bola em jogo; vale o mesmo que a bola em jogo.</li>
+          <li><b>Miss</b>: se o árbitro considerar que não houve tentativa séria de acertar na bola em jogo, o adversário pode pedir as bolas recolocadas e o infrator repete.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Snookers necessários</summary>
+        <ul>
+          <li>Quando a diferença é maior do que os pontos ainda em jogo, o jogador atrás precisa que o adversário cometa faltas (snookers) para recuperar.</li>
+          <li>Pontos em jogo: vermelhas × 8 + 27 (cores), ou a soma das cores que restam.</li>
+        </ul>
+      </details>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="sheet">
+    <div class="meta" id="ovMeta"></div>
+    <div class="big" id="ovTitle"></div>
+    <p class="hint" id="ovText"></p>
+    <button class="btn primary" type="button" id="ovBtn"></button>
+    <button class="btn" type="button" id="ovUndo">Desfazer último lance</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const BALLS=[
+  {v:1,n:'Vermelha',c:'red'},{v:2,n:'Amarela',c:'yellow'},{v:3,n:'Verde',c:'green'},
+  {v:4,n:'Castanha',c:'brown'},{v:5,n:'Azul',c:'blue'},{v:6,n:'Rosa',c:'pink'},{v:7,n:'Preta',c:'black'}];
+const nameOf=v=>BALLS[v-1].n;
+const KEY='snooker-placard-v1';
+
+function freshFrame(s){
+  s.scores=[0,0]; s.brk=0; s.reds=15; s.phase='red'; s.next=2; s.freeBall=false; s.lastRed=false;
+  s.respot=false; s.frameWinner=null; s.log=[]; s.active=s.breaker; s.highFrame=[0,0];
+}
+function freshMatch(){
+  const s={names:['Jogador A','Jogador B'],frames:[0,0],high:[0,0],breaker:0,bestOf:7,frameNo:1,matchWinner:null};
+  freshFrame(s); return s;
+}
+let S, hist=[];
+try{ const raw=localStorage.getItem(KEY); if(raw){const d=JSON.parse(raw); S=d.S; hist=d.hist||[];} }catch(e){}
+if(!S) S=freshMatch();
+
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify({S,hist:hist.slice(-150)})); }catch(e){} }
+function snap(){ hist.push(JSON.stringify(S)); if(hist.length>300) hist.shift(); }
+function undo(){ if(!hist.length) return; S=JSON.parse(hist.pop()); render(); }
+function log(text){ S.log.unshift({p:S.active,t:text,s:S.scores.slice()}); }
+function closeBreak(){
+  const p=S.active;
+  if(S.brk>S.high[p]) S.high[p]=S.brk;
+  if(S.brk>S.highFrame[p]) S.highFrame[p]=S.brk;
+  if(S.brk>0) log(`Fim de tacada: ${S.brk}`);
+  S.brk=0;
+}
+function normalize(){ // após fim de vez/falta
+  if(S.phase==='colour'){ if(S.reds>0) S.phase='red'; else {S.phase='seq'; S.next=2;} }
+  if(S.phase==='red' && S.reds===0){ S.phase='seq'; S.next=2; }
+  S.lastRed=false;
+}
+
+/* ---- Cálculos ---- */
+function remaining(){
+  if(S.frameWinner!==null) return 0;
+  let r;
+  if(S.respot) r=7;
+  else if(S.phase==='red') r=S.reds*8+27;
+  else if(S.phase==='colour') r=7+S.reds*8+27;
+  else { r=0; for(let v=S.next;v<=7;v++) r+=v; }
+  if(S.freeBall) r+= (S.phase==='red'?8:S.next);
+  return r;
+}
+function ballOnValue(){ return S.phase==='seq'? S.next : (S.phase==='red'?1:7); }
+
+/* ---- Ações ---- */
+function canPot(v){
+  if(S.frameWinner!==null) return false;
+  if(S.phase==='red') return v===1 && S.reds>0;
+  if(S.phase==='colour') return v>=2 || (v===1 && S.lastRed && S.reds>0);
+  return v===S.next;
+}
+function pot(v){
+  if(!canPot(v)) return; snap();
+  const p=S.active; S.freeBall=false;
+  if(v===1){
+    S.scores[p]+=1; S.brk+=1; S.reds--; S.phase='colour'; S.lastRed=true;
+    log(`Vermelha +1 (restam ${S.reds})`);
+  } else if(S.phase==='colour'){
+    S.scores[p]+=v; S.brk+=v; S.lastRed=false;
+    log(`${nameOf(v)} +${v}`);
+    if(S.reds>0) S.phase='red'; else {S.phase='seq'; S.next=2;}
+  } else {
+    S.scores[p]+=v; S.brk+=v; log(`${nameOf(v)} +${v}`);
+    if(S.respot){ closeBreak(); endFrame(p,'Preta recolocada embolsada'); render(); return; }
+    S.next++;
+    if(S.next>7) finishByBalls();
+  }
+  render();
+}
+function potFree(){
+  if(!S.freeBall||S.frameWinner!==null) return; snap();
+  const p=S.active, val = S.phase==='red'?1:S.next;
+  S.scores[p]+=val; S.brk+=val; S.freeBall=false;
+  if(S.phase==='red'){ S.phase='colour'; S.lastRed=false; }
+  log(`Bola livre +${val}`);
+  render();
+}
+function finishByBalls(){
+  closeBreak();
+  const [a,b]=S.scores;
+  if(a===b){ S.respot=true; S.phase='seq'; S.next=7; log('Empate: preta recolocada'); }
+  else endFrame(a>b?0:1,'Mesa limpa');
+}
+function endVisit(){
+  if(S.frameWinner!==null) return; snap();
+  closeBreak(); log('Fim de vez'); normalize(); S.freeBall=false; S.active=1-S.active; render();
+}
+function foul(value,redsLost,replay,free){
+  snap();
+  const off=S.active, opp=1-off;
+  closeBreak();
+  S.scores[opp]+=value;
+  S.reds=Math.max(0,S.reds-redsLost);
+  log(`Falta −${value} para ${S.names[opp]}${redsLost?` · ${redsLost} vermelha(s) fora`:''}`);
+  if(S.respot){ endFrame(opp,'Falta na preta recolocada'); render(); return; }
+  normalize();
+  S.active = replay? off : opp;
+  S.freeBall = !replay && free;
+  if(replay) log(`${S.names[off]} obrigado a repetir`);
+  if(S.freeBall) log('Bola livre concedida');
+  render();
+}
+function endFrame(w,why){
+  S.frameWinner=w; S.frames[w]++;
+  log(`Frame para ${S.names[w]} (${why})`);
+  if(S.frames[w] > Math.floor(S.bestOf/2)) S.matchWinner=w;
+}
+function nextFrame(){
+  snap();
+  if(S.matchWinner!==null){
+    const keep={names:S.names,bestOf:S.bestOf}; S=freshMatch(); S.names=keep.names; S.bestOf=keep.bestOf; hist=[];
+  } else { S.frameNo++; S.breaker=1-S.breaker; freshFrame(S); }
+  render();
+}
+
+/* ---- Render ---- */
+const $=id=>document.getElementById(id);
+function render(){
+  const rem=remaining(), [a,b]=S.scores, diff=Math.abs(a-b);
+  $('meta').textContent=`Frame ${S.frameNo} · melhor de ${S.bestOf} · abre ${S.names[S.breaker]}`;
+
+  $('board').innerHTML=S.names.map((n,i)=>`
+    <div class="player ${i===S.active&&S.frameWinner===null?'active':''}">
+      <div class="frames" title="Frames ganhas">${S.frames[i]}</div>
+      <div class="turn">${i===S.active&&S.frameWinner===null?'● A jogar':''}</div>
+      <input class="name" id="name${i}" value="${esc(n)}" aria-label="Nome do jogador ${i+1}" maxlength="24">
+      <div class="score">${S.scores[i]}</div>
+      <div class="brk">${i===S.active&&S.brk>0?`Tacada <span>${S.brk}</span>`:'&nbsp;'}</div>
+      <div class="stats"><span>Máx. possível <b>${S.scores[i]+rem}</b></span><span>Melhor tacada <b>${S.high[i]}</b></span></div>
+    </div>`).join('');
+  S.names.forEach((_,i)=>{ const el=$('name'+i); el.addEventListener('change',()=>{ S.names[i]=el.value.trim()||`Jogador ${'AB'[i]}`; render(); }); });
+
+  const leader = a===b? null : (a>b?0:1);
+  $('status').innerHTML=[
+    ['Em jogo',rem],
+    ['Vermelhas',S.reds],
+    ['Diferença',diff],
+    ['Frames',`${S.frames[0]}–${S.frames[1]}`]
+  ].map(([k,v])=>`<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  // Alerta
+  const al=$('alert'); let cls='', html='';
+  if(S.frameWinner!==null){ html=`Frame terminada: ${esc(S.names[S.frameWinner])} vence.`; }
+  else if(S.respot){ cls='warn'; html=`Preta recolocada <small>Quem a embolsar ganha a frame. Falta na preta dá a frame ao adversário.</small>`; }
+  else if(leader===null){ html=`Empatados <small>${rem} pontos ainda em jogo.</small>`; }
+  else {
+    const trail=1-leader, tn=esc(S.names[trail]), ln=esc(S.names[leader]);
+    if(diff>rem){
+      const fv=Math.max(4, S.phase==='seq'?S.next:4);
+      const n=Math.ceil((diff-rem)/fv);
+      cls='crit';
+      html=`${tn} precisa de ${n} snooker${n>1?'s':''} <small>Diferença de ${diff} com só ${rem} em jogo. Faltam ${diff-rem} pontos que só podem vir de faltas de ${ln} (≈${fv} por falta).</small>`;
+    } else if(diff===rem){
+      cls='warn'; html=`${tn} só empata limpando a mesa <small>Diferença de ${diff} = pontos em jogo. Empate leva à preta recolocada.</small>`;
+    } else {
+      const margin=rem-diff;
+      cls = margin<=15?'warn':'';
+      html=`${ln} lidera por ${diff} <small>${rem} pontos em jogo; ${tn} ainda pode ganhar (margem de ${margin}).</small>`;
+    }
+  }
+  al.className='alert '+cls; al.innerHTML=`<span class="dot"></span><div>${html}</div>`;
+
+  // Bola em jogo
+  let on;
+  if(S.frameWinner!==null) on='—';
+  else if(S.respot) on='Preta (recolocada)';
+  else if(S.phase==='red') on=S.lastRed?'Vermelha':'Vermelha';
+  else if(S.phase==='colour') on='Uma cor à escolha';
+  else on=nameOf(S.next);
+  $('ballOn').innerHTML=`Bola em jogo: <b>${on}</b>${S.freeBall?' · <b>bola livre disponível</b>':''}`;
+
+  const exp = S.phase==='seq'?S.next : (S.phase==='red'?1:null);
+  $('rack').innerHTML = (S.freeBall?`<div class="ball-wrap"><button class="ball free" id="freeBtn" type="button" aria-label="Bola livre"><span>BL +${S.phase==='red'?1:S.next}</span></button>Bola livre</div>`:'') +
+    BALLS.map(bl=>`<div class="ball-wrap"><button class="ball ${bl.c} ${exp===bl.v&&canPot(bl.v)?'expected':''}" type="button" data-v="${bl.v}" ${canPot(bl.v)?'':'disabled'} aria-label="${bl.n}, ${bl.v} ponto${bl.v>1?'s':''}"><span>${bl.v}</span></button>${bl.v===1?`<span class="reds-left">${S.reds} na mesa</span>`:bl.n}</div>`).join('');
+  $('rack').querySelectorAll('.ball[data-v]').forEach(btn=>btn.addEventListener('click',()=>pot(+btn.dataset.v)));
+  if(S.freeBall) $('freeBtn').addEventListener('click',potFree);
+
+  const over=S.frameWinner!==null;
+  ['endVisit','foulBtn','endFrameBtn'].forEach(id=>$(id).disabled=over);
+  $('undo').disabled=!hist.length;
+
+  $('log').innerHTML = S.log.length? S.log.map(e=>`<li><span><b>${esc(S.names[e.p])}</b> · ${esc(e.t)}</span><span>${e.s[0]}–${e.s[1]}</span></li>`).join('') : '<li><span>Ainda sem lances. Toque numa bola para marcar.</span><span></span></li>';
+
+  // Overlay fim de frame
+  const ov=$('overlay');
+  if(over){
+    ov.hidden=false;
+    const w=S.frameWinner, m=S.matchWinner!==null;
+    $('ovMeta').textContent=m?'Encontro terminado':`Frame ${S.frameNo} terminada`;
+    $('ovTitle').textContent=`${S.names[w]} vence`;
+    $('ovText').textContent=`${S.scores[0]}–${S.scores[1]} · frames ${S.frames[0]}–${S.frames[1]} · melhores tacadas ${S.highFrame[0]} / ${S.highFrame[1]}`;
+    $('ovBtn').textContent=m?'Novo encontro':'Próxima frame';
+  } else ov.hidden=true;
+
+  $('bestOf').value=String(S.bestOf);
+  save();
+}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ---- Falta ---- */
+let F={v:4,reds:0,replay:false,free:false};
+function openFoul(){
+  const minV = S.phase==='seq'? Math.max(4,S.next) : 4;
+  F={v:minV,reds:0,replay:false,free:false};
+  hideSheets(); $('foulSheet').hidden=false; drawFoul();
+  $('foulSheet').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function drawFoul(){
+  const off=S.active, opp=1-off;
+  $('foulWho').textContent=S.names[off];
+  $('foulValues').innerHTML=[4,5,6,7].map(v=>`<button type="button" class="chip" data-v="${v}" aria-pressed="${F.v===v}">${v}</button>`).join('');
+  $('foulValues').querySelectorAll('button').forEach(b=>b.onclick=()=>{F.v=+b.dataset.v;drawFoul();});
+  const maxReds = S.reds - (S.phase==='red'||S.phase==='colour'?0:S.reds);
+  F.reds=Math.min(F.reds,maxReds);
+  $('redsLost').textContent=F.reds;
+  $('redMinus').disabled=F.reds<=0; $('redPlus').disabled=F.reds>=maxReds;
+  $('nextChoice').innerHTML=`<button type="button" class="chip" data-r="0" aria-pressed="${!F.replay}">${esc(S.names[opp])} joga</button><button type="button" class="chip" data-r="1" aria-pressed="${F.replay}">${esc(S.names[off])} repete</button>`;
+  $('nextChoice').querySelectorAll('button').forEach(b=>b.onclick=()=>{F.replay=b.dataset.r==='1'; if(F.replay)F.free=false; drawFoul();});
+  $('freeBallRow').hidden=F.replay || S.respot;
+  $('freeBallToggle').setAttribute('aria-pressed',String(F.free));
+}
+$('redMinus').onclick=()=>{F.reds--;drawFoul();};
+$('redPlus').onclick=()=>{F.reds++;drawFoul();};
+$('freeBallToggle').onclick=()=>{F.free=!F.free;drawFoul();};
+$('foulOk').onclick=()=>{ $('foulSheet').hidden=true; foul(F.v,F.reds,F.replay,F.free); };
+$('foulCancel').onclick=()=>$('foulSheet').hidden=true;
+
+/* ---- Terminar frame ---- */
+$('endFrameBtn').onclick=()=>{
+  hideSheets(); $('endSheet').hidden=false;
+  $('endChoice').innerHTML=S.names.map((n,i)=>`<button type="button" class="btn ${S.scores[i]>S.scores[1-i]?'primary':''}" data-w="${i}">${esc(n)} ganha</button>`).join('');
+  $('endChoice').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('endSheet').hidden=true; snap(); closeBreak(); endFrame(+b.dataset.w, +b.dataset.w===(S.scores[0]>=S.scores[1]?0:1)?'adversário desistiu':'decisão'); render(); });
+};
+$('endCancel').onclick=()=>$('endSheet').hidden=true;
+
+/* ---- Configuração ---- */
+let resetArmed=false;
+$('settingsBtn').onclick=()=>{ const open=$('settingsSheet').hidden; hideSheets(); $('settingsSheet').hidden=!open; };
+$('settingsClose').onclick=()=>$('settingsSheet').hidden=true;
+$('bestOf').onchange=e=>{ snap(); S.bestOf=+e.target.value; render(); };
+$('swapBreak').onclick=()=>{ snap(); S.breaker=1-S.breaker; if(S.log.length===0) S.active=S.breaker; render(); };
+$('resetBtn').onclick=()=>{
+  if(!resetArmed){ resetArmed=true; $('resetHint').hidden=false; setTimeout(()=>{resetArmed=false;$('resetHint').hidden=true;},4000); return; }
+  resetArmed=false; $('resetHint').hidden=true;
+  const keep={names:S.names,bestOf:S.bestOf}; snap(); S=freshMatch(); S.names=keep.names; S.bestOf=keep.bestOf; $('settingsSheet').hidden=true; render();
+};
+function hideSheets(){ ['foulSheet','endSheet','settingsSheet'].forEach(id=>$(id).hidden=true); }
+
+$('undo').onclick=undo;
+$('ovUndo').onclick=undo;
+$('ovBtn').onclick=nextFrame;
+$('endVisit').onclick=endVisit;
+$('foulBtn').onclick=openFoul;
+
+render();
+})();
+</script>
+</body>
+</html>
